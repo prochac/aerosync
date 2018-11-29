@@ -25,13 +25,13 @@ const (
 func Test_Basic(t *testing.T) {
 	dr, err := newDockerResource(t)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to create docker resource: %v", err)
 	}
 	defer dr.Close()
 
 	client, err := aerospike.NewClient(asHostname, dr.GetPort())
 	if err != nil {
-		t.Fatalf("Failed to start aerospike bidstore: %s", err)
+		t.Fatalf("Failed to start aerospike bidstore: %v", err)
 	}
 	defer client.Close()
 
@@ -42,17 +42,17 @@ func Test_Basic(t *testing.T) {
 
 	mutex := aerosync.NewMutex(client, key, nil)
 	if err := mutex.Lock(); err != nil {
-		t.Fatalf("Failed to lock mutex key: %s", err)
+		t.Fatalf("Failed to lock mutex key: %v", err)
 	}
 	if err := mutex.Unlock(); err != nil {
-		t.Fatalf("Failed to unlock mutex key: %s", err)
+		t.Fatalf("Failed to unlock mutex key: %v", err)
 	}
 }
 
 func Test_Concurrency(t *testing.T) {
 	dr, err := newDockerResource(t)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to create docker resource: %v", err)
 	}
 	defer dr.Close()
 
@@ -64,13 +64,13 @@ func Test_Concurrency(t *testing.T) {
 
 	client, err := aerospike.NewClientWithPolicyAndHost(policy, aerospike.NewHost(asHostname, dr.GetPort()))
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to create aerospike client: %v", err)
 	}
 	defer client.Close()
 
 	key, err := aerospike.NewKey(asNamespace, asSet, rand.Int63())
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to create aerospike key: %v", err)
 	}
 
 	var wg sync.WaitGroup
@@ -84,7 +84,6 @@ func Test_Concurrency(t *testing.T) {
 				LockTimeout: 5 * time.Second,
 			}
 			mutex := aerosync.NewMutex(client, key, &opts)
-			_ = mutex
 
 			if err := mutex.Lock(); err != nil {
 				t.Fatalf("Failed to lock mutex key: %s", err)
@@ -110,7 +109,7 @@ func Test_Concurrency(t *testing.T) {
 func Test_LockTimeout(t *testing.T) {
 	dr, err := newDockerResource(t)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to create docker resource: %v", err)
 	}
 	defer dr.Close()
 
@@ -122,13 +121,13 @@ func Test_LockTimeout(t *testing.T) {
 
 	client, err := aerospike.NewClientWithPolicyAndHost(policy, aerospike.NewHost(asHostname, dr.GetPort()))
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to create aerospike client: %v", err)
 	}
 	defer client.Close()
 
 	key, err := aerospike.NewKey(asNamespace, asSet, rand.Int63())
 	if err != nil {
-		panic(err)
+		t.Fatalf("Failed to create aerospike key: %v", err)
 	}
 
 	var wg sync.WaitGroup
@@ -142,7 +141,6 @@ func Test_LockTimeout(t *testing.T) {
 				LockTimeout: 1 * time.Second,
 			}
 			mutex := aerosync.NewMutex(client, key, &opts)
-			_ = mutex
 
 			if err := mutex.Lock(); err != nil {
 				t.Fatalf("Failed to lock mutex key: %s", err)
@@ -177,13 +175,13 @@ func Test_RetryExceeded(t *testing.T) {
 
 	client, err := aerospike.NewClientWithPolicyAndHost(policy, aerospike.NewHost(asHostname, dr.GetPort()))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	defer client.Close()
 
 	key, err := aerospike.NewKey(asNamespace, asSet, rand.Int63())
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	go func() {
@@ -193,14 +191,13 @@ func Test_RetryExceeded(t *testing.T) {
 			LockTimeout: 5 * time.Second,
 		}
 		mutex := aerosync.NewMutex(client, key, &opts)
-		_ = mutex
 
 		if err := mutex.Lock(); err != nil {
-			t.Fatalf("Failed to lock mutex key: %s", err)
+			t.Fatalf("Failed to lock mutex key: %v", err)
 		}
 		defer func() {
 			if err := mutex.Unlock(); err != nil {
-				t.Fatalf("Failed to unlock mutex key: %s", err)
+				t.Fatalf("Failed to unlock mutex key: %v", err)
 			}
 		}()
 
@@ -219,7 +216,7 @@ func Test_RetryExceeded(t *testing.T) {
 		if err == aerosync.ErrFailed {
 			return // This is ok
 		}
-		t.Fatalf("Failed to lock mutex key: %s", err)
+		t.Fatalf("Failed to lock mutex key: %v", err)
 	}
 
 	t.Fatalf("Second mutex shouldn't be locked")
@@ -235,7 +232,7 @@ type dockerResource struct {
 func (a dockerResource) GetPort() int {
 	portInt, err := strconv.ParseInt(a.resource.GetPort(strconv.Itoa(asPort)+"/tcp"), 10, 32)
 	if err != nil {
-		log.Panic("Failed to parse port number")
+		log.Fatal("Failed to parse port number")
 	}
 	return int(portInt)
 }
@@ -268,8 +265,9 @@ func newDockerResource(t *testing.T) (*dockerResource, error) {
 	if err := dr.pool.Retry(func() error {
 		as, err := aerospike.NewClient(asHostname, dr.GetPort())
 		if err != nil {
-			return err
+			t.Fatalf("Failed to create aerospike client: %v", err)
 		}
+
 		as.Close()
 		return nil
 	}); err != nil {
